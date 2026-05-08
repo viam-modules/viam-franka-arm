@@ -22,7 +22,7 @@
     "setup": "./setup.sh",
     "build": "make module",
     "path": "bin/module.tar.gz",
-    "arch": ["linux/arm64"]
+    "arch": ["linux/arm64", "linux/amd64"]
   },
   "entrypoint": "bin/viam-franka-arm",
   "first_run": ""

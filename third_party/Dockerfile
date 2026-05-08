@@ -46,8 +46,10 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release \
 RUN find /src/libfranka -name 'libfrankamodel*.so*' -exec cp -av {} /artifacts/lib/ \; || true
 
 # Runtime Poco shared libs need to ride along too — libfranka.so links to them.
+# Also bundle libpcre because Poco 80 (Ubuntu 22.04) needs libpcre.so.3 (pcre1)
+# while many recent hosts only ship pcre2.
 RUN set -e; mkdir -p /artifacts/lib; \
-    for libname in PocoFoundation PocoNet PocoUtil PocoXML PocoJSON; do \
+    for libname in PocoFoundation PocoNet PocoUtil PocoXML PocoJSON pcre; do \
         for so in $(find /usr -name "lib${libname}.so*" 2>/dev/null); do \
             cp -a "$so" /artifacts/lib/; \
         done; \
