@@ -29,7 +29,7 @@ export CGO_CFLAGS
 export CGO_CXXFLAGS
 export CGO_LDFLAGS
 
-.PHONY: build module clean third_party-arm64 lint test gofmt tool-install
+.PHONY: build module setup clean third_party-arm64 lint test gofmt tool-install
 
 build:
 	@test -d "$(VENDOR_DIR)" || (echo "Missing $(VENDOR_DIR). Run 'make third_party-arm64' (or your host arch equivalent) first." && exit 1)
@@ -44,11 +44,17 @@ build:
 module: build
 	rm -f $(BIN_OUTPUT_PATH)/module.tar.gz
 	tar czf $(BIN_OUTPUT_PATH)/module.tar.gz \
-		-C $(BIN_OUTPUT_PATH) viam-franka-arm lib \
-		-C $(CURDIR) meta.json \
-		$(if $(wildcard arm/*.urdf),arm/$(notdir $(wildcard arm/*.urdf)),)
+		$(BIN_OUTPUT_PATH)/viam-franka-arm \
+		$(BIN_OUTPUT_PATH)/lib \
+		meta.json \
+		$(wildcard arm/*.urdf)
 
-# Build vendored libfranka 0.9.2 + deps for linux/arm64 via Docker buildx.
+# Native libfranka build (used by Viam cloud-build via meta.json:build.setup).
+# Locally, runs only on the host's own arch.
+setup:
+	./setup.sh
+
+# Cross-arch build via Docker/podman buildx for local dev convenience.
 third_party-arm64:
 	bash third_party/build.sh linux/arm64
 

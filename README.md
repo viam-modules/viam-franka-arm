@@ -24,20 +24,41 @@ Phase 1 scaffolding. Not yet connected to real hardware.
 ## Build
 
 The module statically vendors `libfranka` and its dependencies (Eigen, Poco)
-into `third_party/<os-arch>/{lib,include}/`. Vendoring is done via a Docker
-buildx recipe so the build host doesn't need apt-get magic.
+into `third_party/<os-arch>/{lib,include}/`.
+
+### Cloud build (Viam's build pipeline)
+
+[meta.json](meta.json) declares a `setup` step that runs [setup.sh](setup.sh)
+inside Viam's per-arch build runner. The runner is already the target arch,
+so `setup.sh` does a native cmake build of libfranka 0.9.2 — no
+cross-compilation, no docker-in-docker.
 
 ```sh
-# One time per arch:
-make third_party-arm64
+# After registering the module on Viam:
+viam module build start
+```
 
-# Then:
+### Local cross-arch build (developer convenience)
+
+For local builds when your host arch differs from the target, `make
+third_party-arm64` uses Docker/podman buildx to vendor libfranka:
+
+```sh
+make third_party-arm64    # one-time per arch, produces third_party/linux-arm64/
+make module               # produces bin/module.tar.gz
+```
+
+### Local native build
+
+If your host *is* the target arch, run `setup.sh` directly:
+
+```sh
+make setup                # apt-installs deps, builds libfranka natively
 make module
-# -> bin/module.tar.gz
 ```
 
 `make build` patchelf's the Go binary's rpath to `$ORIGIN/lib`, so the bundled
-`.so`s are loaded from next to the binary at runtime regardless of where Viam
+`.so`s load from next to the binary at runtime regardless of where Viam
 unpacks the tarball.
 
 ## libfranka version pinning

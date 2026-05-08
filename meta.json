@@ -19,7 +19,9 @@
     }
   ],
   "build": {
+    "setup": "./setup.sh",
     "build": "make module",
+    "path": "bin/module.tar.gz",
     "arch": ["linux/arm64"]
   },
   "entrypoint": "bin/viam-franka-arm",
