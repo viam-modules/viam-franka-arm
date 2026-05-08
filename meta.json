@@ -1,7 +1,7 @@
 {
   "$schema": "https://dl.viam.dev/module.schema.json",
   "module_id": "viam:franka",
-  "visibility": "private",
+  "visibility": "public",
   "url": "https://github.com/viam-modules/viam-franka-arm",
   "description": "Viam Go module for the Franka Emika Panda arm and Franka Hand gripper, wrapping libfranka via cgo.",
   "models": [
