@@ -103,3 +103,6 @@ lint: gofmt tool-install
 
 test: tool-install
 	go test -v -race -failfast ./...
+
+upload:
+	@echo viam module upload --version \"0.0.5\" --platform \"linux/amd64\" bin/module.tar.gz
