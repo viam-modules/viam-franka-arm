@@ -272,6 +272,21 @@ func (g *frankaGripper) Kinematics(ctx context.Context) (referenceframe.Model, e
 	return g.mf, nil
 }
 
+// CurrentInputs reports the current jaw width in meters as a single Input.
+func (g *frankaGripper) CurrentInputs(ctx context.Context) ([]referenceframe.Input, error) {
+	w, _, err := g.readState()
+	if err != nil {
+		return nil, err
+	}
+	return []referenceframe.Input{w}, nil
+}
+
+// GoToInputs is a no-op stub: motion planning never drives the gripper through
+// the frame system. The Viam gripper API uses Open/Grab instead.
+func (g *frankaGripper) GoToInputs(ctx context.Context, inputs ...[]referenceframe.Input) error {
+	return nil
+}
+
 // Close releases the C handle.
 func (g *frankaGripper) Close(ctx context.Context) error {
 	if !g.closed.CompareAndSwap(false, true) {

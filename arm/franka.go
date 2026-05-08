@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	commonpb "go.viam.com/api/common/v1"
 	"go.viam.com/rdk/components/arm"
 	"go.viam.com/rdk/logging"
 	"go.viam.com/rdk/operation"
@@ -180,7 +181,7 @@ func loadPandaModel(path string) (referenceframe.Model, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("URDF not found at %q (set urdf_path or place panda_arm.urdf next to the binary): %w", path, err)
 	}
-	return referenceframe.ParseModelXMLFile(path, modelName, nil)
+	return referenceframe.ParseModelXMLFile(path, modelName)
 }
 
 func (p *panda) connect() error {
@@ -222,7 +223,7 @@ func (p *panda) JointPositions(ctx context.Context, extra map[string]any) ([]ref
 	}
 	out := make([]referenceframe.Input, pandaDOF)
 	for i := 0; i < pandaDOF; i++ {
-		out[i] = referenceframe.Input{Value: float64(st.q[i])}
+		out[i] = float64(st.q[i])
 	}
 	return out, nil
 }
@@ -269,7 +270,7 @@ func (p *panda) MoveToJointPositions(ctx context.Context, positions []referencef
 
 	var q [pandaDOF]C.double
 	for i, v := range positions {
-		q[i] = C.double(v.Value)
+		q[i] = C.double(v)
 	}
 	speed := p.speed.Load().(float64)
 
@@ -313,6 +314,29 @@ func (p *panda) GoToInputs(ctx context.Context, inputSteps ...[]referenceframe.I
 		}
 	}
 	return nil
+}
+
+// MoveThroughJointPositions walks the arm through a sequence of joint targets.
+// MoveOptions are accepted but not honored — libfranka's motion generator uses
+// its own velocity/acceleration limits scaled by speed_factor.
+func (p *panda) MoveThroughJointPositions(
+	ctx context.Context,
+	positions [][]referenceframe.Input,
+	_ *arm.MoveOptions,
+	extra map[string]any,
+) error {
+	for _, step := range positions {
+		if err := p.MoveToJointPositions(ctx, step, extra); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Get3DModels returns named 3D meshes for the arm. We don't ship meshes in
+// this module; motion-planning collision geometry can be added later.
+func (p *panda) Get3DModels(ctx context.Context, extra map[string]any) (map[string]*commonpb.Mesh, error) {
+	return map[string]*commonpb.Mesh{}, nil
 }
 
 // IsMoving reports whether a MoveTo* call is currently in flight.

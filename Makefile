@@ -21,10 +21,12 @@ endif
 
 VENDOR_DIR := $(CURDIR)/third_party/$(VENDOR_TRIPLE)
 
-CGO_CFLAGS  := -I$(VENDOR_DIR)/include
-CGO_LDFLAGS := -L$(VENDOR_DIR)/lib -lfranka -Wl,-rpath,\$$ORIGIN
+CGO_CFLAGS   := -I$(VENDOR_DIR)/include
+CGO_CXXFLAGS := -I$(VENDOR_DIR)/include -std=c++17
+CGO_LDFLAGS  := -L$(VENDOR_DIR)/lib -lfranka -Wl,-rpath,\$$ORIGIN/lib
 
 export CGO_CFLAGS
+export CGO_CXXFLAGS
 export CGO_LDFLAGS
 
 .PHONY: build module clean third_party-arm64 lint test gofmt tool-install
