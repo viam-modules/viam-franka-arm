@@ -3,9 +3,10 @@
 // exercise read/move/recover without spinning up viam-server.
 //
 // Examples:
-//   clifranka -host 172.16.0.2 -read
-//   clifranka -host 172.16.0.2 -recover
-//   clifranka -host 172.16.0.2 -move-joint 6 -move-radians -0.1 -speed 0.05
+//
+//	clifranka -host 172.16.0.2 -read
+//	clifranka -host 172.16.0.2 -recover
+//	clifranka -host 172.16.0.2 -move-joint 6 -move-radians -0.1 -speed 0.05
 package main
 
 import (

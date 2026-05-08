@@ -26,13 +26,13 @@ const (
 	ModelNameGripper = "gripper"
 
 	// Default Franka Hand kinematics: ~80 mm max travel, sensible default speeds.
-	defaultGripperSpeed   = 0.05  // m/s
-	defaultGripperForce   = 20.0  // N
-	defaultEpsilonInner   = 0.005 // m
-	defaultEpsilonOuter   = 0.005 // m
-	openTargetMeters      = 0.08  // commanded open width
-	graspTargetMeters     = 0.0   // close as far as possible (object decides)
-	holdingThresholdM     = 0.001 // jaws within 1 mm of fully closed = nothing held
+	defaultGripperSpeed = 0.05  // m/s
+	defaultGripperForce = 20.0  // N
+	defaultEpsilonInner = 0.005 // m
+	defaultEpsilonOuter = 0.005 // m
+	openTargetMeters    = 0.08  // commanded open width
+	graspTargetMeters   = 0.0   // close as far as possible (object decides)
+	holdingThresholdM   = 0.001 // jaws within 1 mm of fully closed = nothing held
 )
 
 // GripperModel is the resource model for the Franka Hand.

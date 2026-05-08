@@ -30,7 +30,7 @@ import (
 
 const (
 	pandaDOF        = 7
-	defaultSpeed    = 0.1   // libfranka speed_factor in (0, 1]
+	defaultSpeed    = 0.1 // libfranka speed_factor in (0, 1]
 	maxSpeed        = 1.0
 	defaultURDFFile = "panda_arm.urdf"
 	modelName       = "panda"
@@ -125,11 +125,11 @@ type panda struct {
 	motion motion.Service
 	opMgr  *operation.SingleOperationManager
 
-	mu      sync.Mutex // guards handle close + reentrancy
-	handle  *C.fr_robot_t
-	closed  atomic.Bool
-	moving  atomic.Bool
-	speed   atomic.Value // float64; configured speed factor
+	mu     sync.Mutex // guards handle close + reentrancy
+	handle *C.fr_robot_t
+	closed atomic.Bool
+	moving atomic.Bool
+	speed  atomic.Value // float64; configured speed factor
 }
 
 func newPanda(
