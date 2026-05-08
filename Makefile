@@ -23,23 +23,28 @@ VENDOR_DIR := $(CURDIR)/third_party/$(VENDOR_TRIPLE)
 
 CGO_CFLAGS   := -I$(VENDOR_DIR)/include
 CGO_CXXFLAGS := -I$(VENDOR_DIR)/include -std=c++17
-CGO_LDFLAGS  := -L$(VENDOR_DIR)/lib -lfranka -Wl,-rpath,\$$ORIGIN/lib
+CGO_LDFLAGS  := -L$(VENDOR_DIR)/lib -lfranka -Wl,-rpath-link,$(VENDOR_DIR)/lib -Wl,-rpath,\$$ORIGIN/lib
 
 export CGO_CFLAGS
 export CGO_CXXFLAGS
 export CGO_LDFLAGS
 
-.PHONY: build module setup clean third_party-arm64 lint test gofmt tool-install
+.PHONY: build module setup clean third_party-arm64 third_party-amd64 lint test gofmt tool-install
 
 build:
-	@test -d "$(VENDOR_DIR)" || (echo "Missing $(VENDOR_DIR). Run 'make third_party-arm64' (or your host arch equivalent) first." && exit 1)
+	@test -d "$(VENDOR_DIR)" || (echo "Missing $(VENDOR_DIR)." && echo "Run one of:" && echo "  make third_party-$(subst linux-,,$(VENDOR_TRIPLE))   # buildx (needs docker/podman)" && echo "  make setup                       # native build (needs sudo for apt)" && exit 1)
 	rm -rf $(BIN_OUTPUT_PATH)
 	go build -o $(BIN_OUTPUT_PATH)/viam-franka-arm
 	# Copy runtime shared libs next to the binary so $ORIGIN rpath finds them.
 	mkdir -p $(BIN_OUTPUT_PATH)/lib
 	cp -a $(VENDOR_DIR)/lib/*.so* $(BIN_OUTPUT_PATH)/lib/ 2>/dev/null || true
-	# patchelf so the binary loads bundled libs from ./lib next to itself
-	command -v patchelf >/dev/null && patchelf --set-rpath '$$ORIGIN/lib' $(BIN_OUTPUT_PATH)/viam-franka-arm || true
+	# patchelf the binary's RPATH so its bundled libs find their *own* transitive
+	# deps inside ./lib too. --force-rpath emits DT_RPATH (legacy, searched for
+	# transitive deps) instead of DT_RUNPATH (modern, direct-deps-only).
+	command -v patchelf >/dev/null && patchelf --force-rpath --set-rpath '$$ORIGIN/lib' $(BIN_OUTPUT_PATH)/viam-franka-arm || true
+	# Also patchelf each bundled .so so its own transitive deps resolve from
+	# the same dir, regardless of the binary's RPATH.
+	command -v patchelf >/dev/null && for so in $(BIN_OUTPUT_PATH)/lib/*.so*; do test -L "$$so" || patchelf --force-rpath --set-rpath '$$ORIGIN' "$$so" 2>/dev/null || true; done
 
 module: build
 	rm -f $(BIN_OUTPUT_PATH)/module.tar.gz
@@ -54,9 +59,12 @@ module: build
 setup:
 	./setup.sh
 
-# Cross-arch build via Docker/podman buildx for local dev convenience.
+# Cross-arch builds via Docker/podman buildx for local dev convenience.
 third_party-arm64:
 	bash third_party/build.sh linux/arm64
+
+third_party-amd64:
+	bash third_party/build.sh linux/amd64
 
 clean:
 	rm -rf $(BIN_OUTPUT_PATH)

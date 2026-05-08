@@ -65,8 +65,11 @@ mkdir -p "$BUILD_DIR/libfranka/build" "$OUT_DIR/lib" "$OUT_DIR/include"
 echo ">>> Capturing runtime model library blob (loaded via dlopen at runtime)."
 find "$BUILD_DIR/libfranka" -name 'libfrankamodel*.so*' -exec cp -av {} "$OUT_DIR/lib/" \; || true
 
-echo ">>> Capturing Poco shared libs (libfranka links against them)."
-for libname in PocoFoundation PocoNet PocoUtil PocoXML PocoJSON; do
+echo ">>> Capturing Poco shared libs and their transitive deps."
+# Poco 80 (Ubuntu 22.04) is linked against libpcre.so.3 (pcre1). Newer host
+# distros (Fedora 41+, Ubuntu 24.04) have only pcre2, so we ship pcre with
+# the bundle to avoid a "libpcre.so.3 not found" link/runtime error.
+for libname in PocoFoundation PocoNet PocoUtil PocoXML PocoJSON pcre; do
     for so in $(find /usr -name "lib${libname}.so*" 2>/dev/null); do
         cp -a "$so" "$OUT_DIR/lib/"
     done
