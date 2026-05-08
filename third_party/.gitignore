@@ -1,0 +1,4 @@
+# Vendored binary artifacts are produced by build.sh and not checked in.
+linux-amd64/
+linux-arm64/
+darwin-arm64/

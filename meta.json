@@ -1,0 +1,27 @@
+{
+  "$schema": "https://dl.viam.dev/module.schema.json",
+  "module_id": "viam:franka",
+  "visibility": "private",
+  "url": "https://github.com/viam-modules/viam-franka-arm",
+  "description": "Viam Go module for the Franka Emika Panda arm and Franka Hand gripper, wrapping libfranka via cgo.",
+  "models": [
+    {
+      "api": "rdk:component:arm",
+      "model": "viam:franka:panda",
+      "markdown_link": "README.md#configure-your-panda",
+      "short_description": "arm component driver for the Franka Emika Panda"
+    },
+    {
+      "api": "rdk:component:gripper",
+      "model": "viam:franka:gripper",
+      "markdown_link": "README.md#franka-hand",
+      "short_description": "gripper component driver for the Franka Hand"
+    }
+  ],
+  "build": {
+    "build": "make module",
+    "arch": ["linux/arm64"]
+  },
+  "entrypoint": "bin/viam-franka-arm",
+  "first_run": ""
+}
