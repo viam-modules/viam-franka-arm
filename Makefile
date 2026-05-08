@@ -38,6 +38,21 @@ build:
 	# Copy runtime shared libs next to the binary so $ORIGIN rpath finds them.
 	mkdir -p $(BIN_OUTPUT_PATH)/lib
 	cp -a $(VENDOR_DIR)/lib/*.so* $(BIN_OUTPUT_PATH)/lib/ 2>/dev/null || true
+	# Rewrite any absolute symlinks (e.g. libpcre.so -> /lib/x86_64-linux-gnu/libpcre.so.3)
+	# to relative ones so the bundle is self-contained. `viam module upload` warns
+	# about absolute symlinks because they break on deploy hosts lacking that path.
+	@for link in $(BIN_OUTPUT_PATH)/lib/*.so*; do \
+		[ -L "$$link" ] || continue; \
+		target=$$(readlink "$$link"); \
+		case "$$target" in \
+			/*) base=$$(basename "$$target"); \
+			    if [ -e "$(BIN_OUTPUT_PATH)/lib/$$base" ]; then \
+			        ln -sfn "$$base" "$$link"; \
+			    else \
+			        rm "$$link"; \
+			    fi ;; \
+		esac; \
+	done
 	# patchelf the binary's RPATH so its bundled libs find their *own* transitive
 	# deps inside ./lib too. --force-rpath emits DT_RPATH (legacy, searched for
 	# transitive deps) instead of DT_RUNPATH (modern, direct-deps-only).
