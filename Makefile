@@ -29,7 +29,7 @@ export CGO_CFLAGS
 export CGO_CXXFLAGS
 export CGO_LDFLAGS
 
-.PHONY: build module setup clean third_party-arm64 third_party-amd64 lint test gofmt tool-install
+.PHONY: build module module.tar.gz setup clean third_party-arm64 third_party-amd64 lint test gofmt tool-install
 
 build:
 	@test -d "$(VENDOR_DIR)" || (echo "Missing $(VENDOR_DIR)." && echo "Run one of:" && echo "  make third_party-$(subst linux-,,$(VENDOR_TRIPLE))   # buildx (needs docker/podman)" && echo "  make setup                       # native build (needs sudo for apt)" && exit 1)
@@ -53,6 +53,9 @@ module: build
 		$(BIN_OUTPUT_PATH)/lib \
 		meta.json \
 		$(wildcard arm/*.urdf)
+
+# Alias so `make module.tar.gz` works for users who type the artifact name.
+module.tar.gz: module
 
 # Native libfranka build (used by Viam cloud-build via meta.json:build.setup).
 # Locally, runs only on the host's own arch.
