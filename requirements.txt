@@ -1,0 +1,3 @@
+# Empty: this Go module has no Python deps. The file exists to satisfy
+# Viam cloud build's cache-key step which checksums requirements.txt
+# regardless of module language.
