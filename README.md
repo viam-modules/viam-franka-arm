@@ -27,10 +27,10 @@ Phase 1 scaffolding. Not yet connected to real hardware.
   ```conf
   @realtime soft rtprio 99
   @realtime soft priority 99
-  @realtime soft memlock 102400
+  @realtime soft memlock unlimited
   @realtime hard rtprio 99
   @realtime hard priority 99
-  @realtime hard memlock 102400
+  @realtime hard memlock unlimited
   ```
 
   Create the group if it doesn't exist and add the `viam` user to it:
