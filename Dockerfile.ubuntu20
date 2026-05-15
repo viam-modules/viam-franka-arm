@@ -1,0 +1,67 @@
+# Dockerfile.ubuntu20
+#
+# Builds viam-franka-arm inside an Ubuntu 20.04 (glibc 2.31) container so
+# the resulting binary runs on any host with glibc >= 2.31, including
+# Ubuntu 20.04, 22.04, 24.04, and Debian Bullseye/Bookworm.
+#
+# Usage (from repo root):
+#   make module-ubuntu20-amd64    # amd64
+#   make module-ubuntu20-arm64    # arm64 (requires docker buildx + QEMU)
+#
+# The finished module tarball is extracted to bin/module.tar.gz on the host.
+
+ARG TARGETARCH=amd64
+FROM ubuntu:20.04
+
+# ── system deps ────────────────────────────────────────────────────────────────
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        curl \
+        git \
+        libeigen3-dev \
+        libpoco-dev \
+        patchelf \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Go toolchain ───────────────────────────────────────────────────────────────
+# Pin to a recent stable release; override with --build-arg if needed.
+ARG GO_VERSION=1.24.3
+ARG TARGETARCH
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+        amd64)  GOARCH=amd64  ;; \
+        arm64)  GOARCH=arm64  ;; \
+        *)      echo "Unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://dl.google.com/go/go${GO_VERSION}.linux-${GOARCH}.tar.gz" \
+        | tar -C /usr/local -xz
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/go"
+ENV GOMODCACHE="/go/pkg/mod"
+
+# ── source ─────────────────────────────────────────────────────────────────────
+WORKDIR /build
+# Copy go.mod/go.sum first so the module-download layer is cached separately
+# from source changes.
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# ── libfranka (vendored via setup.sh) ─────────────────────────────────────────
+# setup.sh is idempotent: it skips the cmake build if third_party/<triple>/
+# is already populated (e.g. when the layer is cached).
+RUN bash setup.sh
+
+# ── build ──────────────────────────────────────────────────────────────────────
+RUN make module
+
+# ── export stage ───────────────────────────────────────────────────────────────
+# A minimal scratch image is used purely as a vehicle to extract the tarball
+# with `docker cp` or `--output`.  Nothing here runs at deploy time.
+FROM scratch AS export
+COPY --from=0 /build/bin/module.tar.gz /module.tar.gz

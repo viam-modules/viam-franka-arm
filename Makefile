@@ -69,8 +69,42 @@ module: build
 		meta.json \
 		$(wildcard arm/*.urdf)
 
-# Alias so `make module.tar.gz` works for users who type the artifact name.
-module.tar.gz: module
+# `make module.tar.gz` builds both glibc-2.31 platform tarballs.
+# Outputs: $(BIN_OUTPUT_PATH)/module.tar.gz (amd64), $(BIN_OUTPUT_PATH)/arm64/module.tar.gz (arm64).
+module.tar.gz: module-ubuntu20-amd64 module-ubuntu20-arm64
+	@echo ">>> Built platform tarballs:"
+	@ls -lh $(BIN_OUTPUT_PATH)/module.tar.gz $(BIN_OUTPUT_PATH)/arm64/module.tar.gz
+
+# ── glibc-2.31 compatible builds (Ubuntu 20.04 Docker) ────────────────────────
+#
+# These targets build inside an Ubuntu 20.04 container so the resulting binary
+# links against glibc 2.31 — the lowest common denominator for all Ubuntu LTS
+# releases from 20.04 onward.
+
+## Build a glibc-2.31 compatible module for linux/amd64.
+module-ubuntu20-amd64:
+
+	docker build \
+		--file Dockerfile.ubuntu20 \
+		--build-arg TARGETARCH=amd64 \
+		--target export \
+		--output type=local,dest=$(BIN_OUTPUT_PATH) \
+		.
+	@echo ">>> $(BIN_OUTPUT_PATH)/module.tar.gz built inside Ubuntu 20.04 (glibc 2.31)"
+	@echo ">>> Binary is compatible with any Linux host running glibc >= 2.31"
+
+## Build a glibc-2.31 compatible module for linux/arm64.
+## Requires QEMU binfmt support on amd64 hosts (see above).
+module-ubuntu20-arm64:
+
+	docker buildx build \
+		--file Dockerfile.ubuntu20 \
+		--platform linux/arm64 \
+		--build-arg TARGETARCH=arm64 \
+		--target export \
+		--output type=local,dest=$(BIN_OUTPUT_PATH)/arm64 \
+		.
+	@echo ">>> $(BIN_OUTPUT_PATH)/arm64/module.tar.gz built inside Ubuntu 20.04 (glibc 2.31) for arm64"
 
 # Native libfranka build (used by Viam cloud-build via meta.json:build.setup).
 # Locally, runs only on the host's own arch.
@@ -105,4 +139,5 @@ test: tool-install
 	go test -v -race -failfast ./...
 
 upload:
-	@echo viam module upload --version \"0.0.5\" --platform \"linux/amd64\" bin/module.tar.gz
+	@echo viam module upload --version \"0.0.5\" --platform \"linux/amd64\" $(BIN_OUTPUT_PATH)/module.tar.gz
+	@echo viam module upload --version \"0.0.5\" --platform \"linux/arm64\" $(BIN_OUTPUT_PATH)/arm64/module.tar.gz
