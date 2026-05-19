@@ -16,8 +16,18 @@
     <origin rpy="0 0 0" xyz="0 0 0"/>
   </joint>
   <link name="panda_link0">
+    <collision>
+      <geometry>
+        <mesh filename="meshes/panda/link0.stl"/>
+      </geometry>
+    </collision>
   </link>
   <link name="panda_link1">
+    <collision>
+      <geometry>
+        <mesh filename="meshes/panda/link1.stl"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="panda_joint1" type="revolute">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="-2.8973" soft_upper_limit="2.8973"/>
@@ -29,6 +39,11 @@
     <dynamics D="1" K="7000" damping="0.003" friction="0.06" mu_coulomb="0" mu_viscous="16"/>
   </joint>
   <link name="panda_link2">
+    <collision>
+      <geometry>
+        <mesh filename="meshes/panda/link2.stl"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="panda_joint2" type="revolute">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="-1.7628" soft_upper_limit="1.7628"/>
@@ -40,6 +55,11 @@
     <dynamics D="1" K="7000" damping="0.003" friction="0.06" mu_coulomb="0" mu_viscous="16"/>
   </joint>
   <link name="panda_link3">
+    <collision>
+      <geometry>
+        <mesh filename="meshes/panda/link3.stl"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="panda_joint3" type="revolute">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="-2.8973" soft_upper_limit="2.8973"/>
@@ -51,6 +71,11 @@
     <dynamics D="1" K="7000" damping="0.003" friction="0.06" mu_coulomb="0" mu_viscous="16"/>
   </joint>
   <link name="panda_link4">
+    <collision>
+      <geometry>
+        <mesh filename="meshes/panda/link4.stl"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="panda_joint4" type="revolute">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="-3.0718" soft_upper_limit="-0.0698"/>
@@ -62,6 +87,11 @@
     <dynamics D="1" K="7000" damping="0.003" friction="0.06" mu_coulomb="0" mu_viscous="16"/>
   </joint>
   <link name="panda_link5">
+    <collision>
+      <geometry>
+        <mesh filename="meshes/panda/link5.stl"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="panda_joint5" type="revolute">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="-2.8973" soft_upper_limit="2.8973"/>
@@ -73,6 +103,11 @@
     <dynamics D="1" K="7000" damping="0.003" friction="0.06" mu_coulomb="0" mu_viscous="16"/>
   </joint>
   <link name="panda_link6">
+    <collision>
+      <geometry>
+        <mesh filename="meshes/panda/link6.stl"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="panda_joint6" type="revolute">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="-0.0175" soft_upper_limit="3.7525"/>
@@ -84,6 +119,11 @@
     <dynamics D="1" K="7000" damping="0.003" friction="0.06" mu_coulomb="0" mu_viscous="16"/>
   </joint>
   <link name="panda_link7">
+    <collision>
+      <geometry>
+        <mesh filename="meshes/panda/link7.stl"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="panda_joint7" type="revolute">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="-2.8973" soft_upper_limit="2.8973"/>

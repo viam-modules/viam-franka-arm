@@ -82,42 +82,122 @@ provide the `.so.80` ABI libfranka 0.9.2 was linked against.
 ## Build
 
 The module statically vendors `libfranka` and its dependencies (Eigen, Poco)
-into `third_party/<os-arch>/{lib,include}/`.
+into `third_party/<os-arch>/{lib,include}/`. At deploy time the bundled
+shared libraries sit next to the binary in `bin/lib/`; the binary's `RPATH`
+is patched to `$ORIGIN/lib`, so it loads them without touching the host's
+package state.
 
-### Cloud build (Viam's build pipeline)
+Three build paths, listed in order of how often you'll use them:
 
-[meta.json](meta.json) declares a `setup` step that runs [setup.sh](setup.sh)
-inside Viam's per-arch build runner. The runner is already the target arch,
-so `setup.sh` does a native cmake build of libfranka 0.9.2 — no
-cross-compilation, no docker-in-docker.
+| Goal | Command | Output |
+| --- | --- | --- |
+| Release tarballs for both arches | `make module.tar.gz` | `bin/amd64/module.tar.gz` + `bin/arm64/module.tar.gz` |
+| Fast local iteration on host arch | `make setup && make module` | `bin/module.tar.gz` |
+| Viam-managed cloud build | `viam module build start` | uploaded by Viam |
+
+### Release build: both arches (`make module.tar.gz`)
+
+This is the build to run before `viam module upload`. It produces
+glibc-2.31-portable tarballs for **both** `linux/amd64` and `linux/arm64` from
+a single host:
 
 ```sh
-# After registering the module on Viam:
+make module.tar.gz
+```
+
+What it does, end-to-end:
+
+1. Builds `third_party/linux-amd64/` and `third_party/linux-arm64/` inside
+   an Ubuntu 20.04 container (`UBUNTU_VERSION=20.04`). This pins libfranka
+   and Poco to glibc 2.31, the lowest common denominator supported by every
+   Ubuntu LTS from 20.04 onward and most modern distros (Debian 11+, RHEL 9+,
+   Fedora, etc.).
+2. Builds the Go binary inside that same Ubuntu 20.04 container so it picks
+   up the matching glibc.
+3. Bundles the binary, shared libs, URDF, and STL meshes into a tarball per
+   arch.
+
+Outputs:
+
+- `bin/amd64/module.tar.gz`
+- `bin/arm64/module.tar.gz`
+
+Prerequisites:
+
+- Docker with `buildx` (or podman with buildx support).
+- For cross-arch (e.g. building arm64 from an amd64 host), QEMU binfmt
+  emulation must be registered:
+
+  ```sh
+  docker run --rm --privileged tonistiigi/binfmt --install all   # docker
+  sudo dnf install qemu-user-static                               # podman/Fedora
+  sudo apt install qemu-user-static                               # podman/Debian
+  ```
+
+Per-arch shortcuts (skip the other arch when you only need one):
+
+```sh
+make module-ubuntu20-amd64    # bin/amd64/module.tar.gz only
+make module-ubuntu20-arm64    # bin/arm64/module.tar.gz only
+```
+
+Note: the per-arch targets do **not** rebuild `third_party/` first. If
+you've never built before, or are reproducing a release on a fresh host,
+run `make module.tar.gz` (or first run `make third_party-ubuntu20-{amd64,arm64}`
+manually) so the vendored libs exist before linking.
+
+#### Uploading to the Viam registry
+
+`make upload` prints the exact commands (it doesn't run them, so you can
+review the version string first):
+
+```sh
+make upload
+# viam module upload --version "0.0.5" --platform "linux/amd64" bin/amd64/module.tar.gz
+# viam module upload --version "0.0.5" --platform "linux/arm64" bin/arm64/module.tar.gz
+```
+
+Bump the version string in the Makefile's `upload:` target before tagging a
+release.
+
+### Local dev build (host arch only)
+
+For tight iteration loops, skip Docker and build natively against the
+host's libfranka:
+
+```sh
+make setup     # apt-installs deps, builds libfranka 0.9.2 natively
+make module    # produces bin/module.tar.gz for the host arch
+```
+
+`make setup` is idempotent — it skips the rebuild if `third_party/<triple>/`
+is already populated.
+
+Caveat: a natively-built binary is linked against your host's glibc, which
+on a recent distro (Fedora 41+, Ubuntu 24.04, etc.) will be too new to load
+on a Raspberry Pi or Ubuntu 22.04 deploy host. **Use `make module.tar.gz`
+for anything that leaves your machine.**
+
+### Cloud build (Viam's CI pipeline)
+
+[meta.json](meta.json) points Viam's build runners at [setup.sh](setup.sh)
+and `make module`. Each runner is already the target arch, so it does a native
+build per arch — no docker-in-docker.
+
+```sh
 viam module build start
 ```
 
-### Local cross-arch build (developer convenience)
+### Cleaning up
 
-For local builds when your host arch differs from the target, `make
-third_party-arm64` uses Docker/podman buildx to vendor libfranka:
+| Target | Effect |
+| --- | --- |
+| `make clean` | `rm -rf bin/` |
+| `make clean-docker` | prune + remove the `viam-franka-builder` buildx instance and its cache; leaves the default buildx cache (shared with other projects) alone |
+| `make distclean` | `clean` + `clean-docker` + wipe `third_party/linux-{amd64,arm64}` and `third_party/build/` |
 
-```sh
-make third_party-arm64    # one-time per arch, produces third_party/linux-arm64/
-make module               # produces bin/module.tar.gz
-```
-
-### Local native build
-
-If your host *is* the target arch, run `setup.sh` directly:
-
-```sh
-make setup                # apt-installs deps, builds libfranka natively
-make module
-```
-
-`make build` patchelf's the Go binary's rpath to `$ORIGIN/lib`, so the bundled
-`.so`s load from next to the binary at runtime regardless of where Viam
-unpacks the tarball.
+Reach for `distclean` when you suspect stale vendored libs (e.g. after the
+glibc-version error documented in the Makefile comments).
 
 ## libfranka version pinning
 
@@ -129,11 +209,20 @@ only as API reference — the Docker build fetches 0.9.2 from GitHub.
 If you later want FR3 support, treat that as a separate model with its own
 vendored 0.10+ build, not a version bump of this module.
 
-## Asset: Panda URDF
+## Assets: URDF + meshes
 
-Drop a `panda_arm.urdf` into `arm/` before building. Source it from the ROS
-[`franka_description`](https://github.com/frankaemika/franka_description)
-package. Viam's motion planning consumes the URDF through `ModelFrame`.
+[`arm/panda_arm.urdf`](arm/panda_arm.urdf) and the collision STLs under
+[`arm/meshes/panda/`](arm/meshes/panda/) are checked into the repo and
+bundled into the module tarball by [Makefile:66-71](Makefile#L66). The
+URDF's `<collision>` blocks reference the STLs by relative path; Viam's
+URDF parser resolves them next to the URDF file and embeds the meshes
+into the kinematic model. The arm then renders in the 3D Scene tab.
+
+The STLs were taken from the
+[franka_description](https://github.com/frankarobotics/franka_description)
+repo's `meshes/robots/fer/collision/` directory (FER is the renamed
+Panda). `hand.stl` powers the gripper's 3D rendering via the
+`Geometries()` method on the gripper component.
 
 ## Configure your Panda
 

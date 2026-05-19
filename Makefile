@@ -29,7 +29,7 @@ export CGO_CFLAGS
 export CGO_CXXFLAGS
 export CGO_LDFLAGS
 
-.PHONY: build module module.tar.gz setup clean third_party-arm64 third_party-amd64 lint test gofmt tool-install
+.PHONY: build module module.tar.gz setup clean clean-docker distclean third_party-arm64 third_party-amd64 third_party-ubuntu20-amd64 third_party-ubuntu20-arm64 module-ubuntu20-amd64 module-ubuntu20-arm64 lint test gofmt tool-install
 
 build:
 	@test -d "$(VENDOR_DIR)" || (echo "Missing $(VENDOR_DIR)." && echo "Run one of:" && echo "  make third_party-$(subst linux-,,$(VENDOR_TRIPLE))   # buildx (needs docker/podman)" && echo "  make setup                       # native build (needs sudo for apt)" && exit 1)
@@ -67,10 +67,59 @@ module: build
 		$(BIN_OUTPUT_PATH)/viam-franka-arm \
 		$(BIN_OUTPUT_PATH)/lib \
 		meta.json \
-		$(wildcard arm/*.urdf)
+		$(wildcard arm/*.urdf) \
+		arm/meshes
 
-# Alias so `make module.tar.gz` works for users who type the artifact name.
-module.tar.gz: module
+# `make module.tar.gz` builds both glibc-2.31 platform tarballs.
+# It first rebuilds third_party/linux-{amd64,arm64} inside Ubuntu 20.04 so the
+# vendored libfranka + Poco shared libs reference glibc 2.31 only — otherwise
+# linking inside the Ubuntu 20.04 module-build container fails with
+# "undefined reference to stat64@GLIBC_2.33" etc.
+# Outputs: $(BIN_OUTPUT_PATH)/amd64/module.tar.gz, $(BIN_OUTPUT_PATH)/arm64/module.tar.gz.
+module.tar.gz: third_party-ubuntu20-amd64 third_party-ubuntu20-arm64 module-ubuntu20-amd64 module-ubuntu20-arm64
+	@echo ">>> Built platform tarballs:"
+	@ls -lh $(BIN_OUTPUT_PATH)/amd64/module.tar.gz $(BIN_OUTPUT_PATH)/arm64/module.tar.gz
+
+# Build libfranka + Poco against Ubuntu 20.04 (glibc 2.31) for the module
+# tarball. Distinct from `third_party-amd64`/`third_party-arm64` (which use the
+# build.sh default) so dev builds stay decoupled from release builds.
+third_party-ubuntu20-amd64:
+	UBUNTU_VERSION=20.04 bash third_party/build.sh linux/amd64
+
+third_party-ubuntu20-arm64:
+	UBUNTU_VERSION=20.04 bash third_party/build.sh linux/arm64
+
+# ── glibc-2.31 compatible builds (Ubuntu 20.04 Docker) ────────────────────────
+#
+# These targets build inside an Ubuntu 20.04 container so the resulting binary
+# links against glibc 2.31 — the lowest common denominator for all Ubuntu LTS
+# releases from 20.04 onward.
+
+## Build a glibc-2.31 compatible module for linux/amd64.
+module-ubuntu20-amd64:
+
+	docker build \
+		--file Dockerfile.ubuntu20 \
+		--build-arg TARGETARCH=amd64 \
+		--target export \
+		--output type=local,dest=$(BIN_OUTPUT_PATH)/amd64 \
+		.
+	@echo ">>> $(BIN_OUTPUT_PATH)/amd64/module.tar.gz built inside Ubuntu 20.04 (glibc 2.31) for amd64"
+	@echo ">>> Binary is compatible with any Linux host running glibc >= 2.31"
+
+## Build a glibc-2.31 compatible module for linux/arm64.
+## Requires QEMU binfmt support on amd64 hosts (see above).
+module-ubuntu20-arm64:
+
+	docker buildx build \
+		--file Dockerfile.ubuntu20 \
+		--platform linux/arm64 \
+		--build-arg TARGETARCH=arm64 \
+		--target export \
+		--output type=local,dest=$(BIN_OUTPUT_PATH)/arm64 \
+		.
+	@echo ">>> $(BIN_OUTPUT_PATH)/arm64/module.tar.gz built inside Ubuntu 20.04 (glibc 2.31) for arm64"
+	@echo ">>> Binary is compatible with any Linux host running glibc >= 2.31"
 
 # Native libfranka build (used by Viam cloud-build via meta.json:build.setup).
 # Locally, runs only on the host's own arch.
@@ -86,6 +135,19 @@ third_party-amd64:
 
 clean:
 	rm -rf $(BIN_OUTPUT_PATH)
+
+# Wipe local Docker state created by this project's builds.
+# Prunes only the dedicated buildx builder's cache, then removes the builder
+# itself — leaves the default buildx cache (shared with other projects) alone.
+# Safe to run anytime; next `make module.tar.gz` recreates the builder.
+clean-docker:
+	-docker buildx prune -f --builder viam-franka-builder 2>/dev/null || true
+	-docker buildx rm viam-franka-builder 2>/dev/null || true
+
+# Full reset: build outputs + vendored third_party + Docker state.
+# Use when bisecting "is it me or is it the cache".
+distclean: clean clean-docker
+	rm -rf third_party/linux-amd64 third_party/linux-arm64 third_party/build
 
 tool-install:
 	GOBIN=`pwd`/$(TOOL_BIN) go install \
@@ -105,4 +167,5 @@ test: tool-install
 	go test -v -race -failfast ./...
 
 upload:
-	@echo viam module upload --version \"0.0.5\" --platform \"linux/amd64\" bin/module.tar.gz
+	@echo viam module upload --version \"0.0.5\" --platform \"linux/amd64\" $(BIN_OUTPUT_PATH)/amd64/module.tar.gz
+	@echo viam module upload --version \"0.0.5\" --platform \"linux/arm64\" $(BIN_OUTPUT_PATH)/arm64/module.tar.gz
