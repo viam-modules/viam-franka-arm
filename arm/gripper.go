@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -33,6 +34,8 @@ const (
 	openTargetMeters    = 0.08  // commanded open width
 	graspTargetMeters   = 0.0   // close as far as possible (object decides)
 	holdingThresholdM   = 0.001 // jaws within 1 mm of fully closed = nothing held
+
+	defaultHandSTLFile = "meshes/panda/hand.stl"
 )
 
 // GripperModel is the resource model for the Franka Hand.
@@ -92,12 +95,22 @@ type frankaGripper struct {
 	conf      *GripperConfig
 	logger    logging.Logger
 	mf        referenceframe.Model
+	geometry  spatialmath.Geometry
 	maxWidthM atomic.Value // float64
 
 	mu     sync.Mutex
 	handle *C.fr_gripper_t
 	closed atomic.Bool
 	moving atomic.Bool
+}
+
+// handSTLPath resolves the Franka Hand collision mesh next to the module
+// binary using VIAM_MODULE_ROOT, falling back to a local relative path.
+func handSTLPath() string {
+	if root := os.Getenv("VIAM_MODULE_ROOT"); root != "" {
+		return fmt.Sprintf("%s/arm/%s", root, defaultHandSTLFile)
+	}
+	return "arm/" + defaultHandSTLFile
 }
 
 func newFrankaGripper(
@@ -116,6 +129,11 @@ func newFrankaGripper(
 		conf:   cfg,
 		logger: logger,
 		mf:     referenceframe.NewSimpleModel("franka-hand"),
+	}
+	if mesh, err := spatialmath.NewMeshFromSTLFile(handSTLPath()); err == nil {
+		g.geometry = mesh
+	} else {
+		logger.Warnf("franka-hand: hand.stl not loaded, gripper will not render in 3D Scene: %v", err)
 	}
 	g.maxWidthM.Store(openTargetMeters)
 
@@ -261,10 +279,13 @@ func (g *frankaGripper) IsHoldingSomething(
 	}, nil
 }
 
-// Geometries reports a single bounding-box geometry for the closed gripper.
-// Real geometry should be sourced from the franka_description URDF if needed.
+// Geometries returns the Franka Hand collision mesh (hand.stl) so the gripper
+// renders in the 3D Scene tab.
 func (g *frankaGripper) Geometries(ctx context.Context, extra map[string]any) ([]spatialmath.Geometry, error) {
-	return nil, nil
+	if g.geometry == nil {
+		return []spatialmath.Geometry{}, nil
+	}
+	return []spatialmath.Geometry{g.geometry}, nil
 }
 
 // Kinematics returns the gripper's frame model (a simple TCP placeholder).

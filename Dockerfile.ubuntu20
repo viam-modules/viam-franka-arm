@@ -29,7 +29,7 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
 
 # ── Go toolchain ───────────────────────────────────────────────────────────────
 # Pin to a recent stable release; override with --build-arg if needed.
-ARG GO_VERSION=1.24.3
+ARG GO_VERSION=1.25.1
 ARG TARGETARCH
 RUN set -eux; \
     case "${TARGETARCH}" in \

@@ -12,6 +12,10 @@ set -euo pipefail
 
 PLATFORM="${1:-linux/arm64}"
 LIBFRANKA_TAG="${LIBFRANKA_TAG:-0.9.2}"
+# Ubuntu image used to build libfranka + Poco. Pin to 20.04 (glibc 2.31) to
+# produce shared libs that load on any modern Linux deploy target. Override
+# with UBUNTU_VERSION=22.04 if you want newer.
+UBUNTU_VERSION="${UBUNTU_VERSION:-20.04}"
 
 case "$PLATFORM" in
     linux/arm64)  TRIPLE="linux-arm64"  ;;
@@ -47,6 +51,7 @@ case "$ENGINE" in
         docker buildx build \
             --platform "$PLATFORM" \
             --build-arg "LIBFRANKA_TAG=$LIBFRANKA_TAG" \
+            --build-arg "UBUNTU_VERSION=$UBUNTU_VERSION" \
             --target export \
             --output "type=local,dest=$OUT_DIR" \
             -f "$REPO_ROOT/third_party/Dockerfile" \
@@ -57,6 +62,7 @@ case "$ENGINE" in
         podman build \
             --platform="$PLATFORM" \
             --build-arg "LIBFRANKA_TAG=$LIBFRANKA_TAG" \
+            --build-arg "UBUNTU_VERSION=$UBUNTU_VERSION" \
             --target=export \
             --output "type=local,dest=$OUT_DIR" \
             -f "$REPO_ROOT/third_party/Dockerfile" \

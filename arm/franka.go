@@ -140,7 +140,7 @@ func newPanda(
 	logger logging.Logger,
 	deps resource.Dependencies,
 ) (arm.Arm, error) {
-	model, err := loadPandaModel(cfg.urdfPath())
+	model, err := MakeModelFrameFromURDF(cfg.urdfPath())
 	if err != nil {
 		return nil, fmt.Errorf("loading panda kinematics: %w", err)
 	}
@@ -177,7 +177,10 @@ func newPanda(
 	return p, nil
 }
 
-func loadPandaModel(path string) (referenceframe.Model, error) {
+// MakeModelFrameFromURDF parses the Panda URDF at path into a referenceframe.Model.
+// Collision meshes referenced by the URDF (relative to its directory) are loaded
+// automatically by referenceframe.ParseModelXMLFile and surface in the 3D Scene tab.
+func MakeModelFrameFromURDF(path string) (referenceframe.Model, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("URDF not found at %q (set urdf_path or place panda_arm.urdf next to the binary): %w", path, err)
 	}
