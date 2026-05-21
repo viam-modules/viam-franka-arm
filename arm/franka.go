@@ -42,7 +42,19 @@ const (
 	doRecover  = "recover"
 	doSetSpeed = "set_speed"
 	doGetState = "get_state"
+
+	// Link7 geometry label produced by referenceframe.Model.Geometries:
+	// "<modelName>:<linkName>".
+	link7GeomLabel = modelName + ":panda_link7"
 )
+
+// endEffectorSTLs maps the end_effector config attribute to its STL file under
+// meshes/panda/. Add new end-effectors here.
+var endEffectorSTLs = map[string]string{
+	"hand":           "meshes/panda/hand.stl",
+	"fr3_movable":    "meshes/panda/Franka_Hand_Research_FR3_movable.stl",
+	"flange_gripper": "meshes/panda/FlangeGripperFingersv1_newfingers.stl",
+}
 
 var (
 	family = resource.ModelNamespace("viam").WithFamily("franka")
@@ -78,6 +90,10 @@ type Config struct {
 	SpeedFactor float64 `json:"speed_factor,omitempty"`
 	Motion      string  `json:"motion,omitempty"`
 	URDFPath    string  `json:"urdf_path,omitempty"`
+	// EndEffector names the gripper/end-effector mounted on link7. The named STL
+	// is attached to panda_link7 as additional collision geometry. Leave empty
+	// for a bare arm. See endEffectorSTLs for valid names.
+	EndEffector string `json:"end_effector,omitempty"`
 }
 
 // Validate the Config.
@@ -87,6 +103,15 @@ func (c *Config) Validate(path string) ([]string, []string, error) {
 	}
 	if c.SpeedFactor != 0 && (c.SpeedFactor <= 0 || c.SpeedFactor > maxSpeed) {
 		return nil, nil, fmt.Errorf("speed_factor must be in (0, %v]", maxSpeed)
+	}
+	if c.EndEffector != "" {
+		if _, ok := endEffectorSTLs[c.EndEffector]; !ok {
+			names := make([]string, 0, len(endEffectorSTLs))
+			for k := range endEffectorSTLs {
+				names = append(names, k)
+			}
+			return nil, nil, fmt.Errorf("end_effector %q is not one of %v", c.EndEffector, names)
+		}
 	}
 
 	var deps, opt []string
@@ -115,6 +140,15 @@ func (c *Config) urdfPath() string {
 	return "arm/" + defaultURDFFile
 }
 
+// endEffectorSTLPath resolves a meshes/panda/*.stl relative path next to the
+// module binary using VIAM_MODULE_ROOT, falling back to a local relative path.
+func endEffectorSTLPath(relPath string) string {
+	if root := os.Getenv("VIAM_MODULE_ROOT"); root != "" {
+		return fmt.Sprintf("%s/arm/%s", root, relPath)
+	}
+	return "arm/" + relPath
+}
+
 // panda is the runtime arm component.
 type panda struct {
 	resource.Named
@@ -125,6 +159,10 @@ type panda struct {
 	model  referenceframe.Model
 	motion motion.Service
 	opMgr  *operation.SingleOperationManager
+
+	// endEffectorMesh, when non-nil, is appended to Geometries() at link7's
+	// world-frame pose. Loaded once at construction from the configured STL.
+	endEffectorMesh spatialmath.Geometry
 
 	mu     sync.Mutex // guards handle close + reentrancy
 	handle *C.fr_robot_t
@@ -162,6 +200,18 @@ func newPanda(
 		opMgr:  operation.NewSingleOperationManager(),
 	}
 	p.speed.Store(cfg.speedFactor())
+
+	if cfg.EndEffector != "" {
+		eeMeshPath := endEffectorSTLPath(endEffectorSTLs[cfg.EndEffector])
+		mesh, err := spatialmath.NewMeshFromSTLFile(eeMeshPath)
+		if err != nil {
+			logger.Warnf("end_effector %q: %s not loaded, end-effector will not render in 3D Scene: %v",
+				cfg.EndEffector, eeMeshPath, err)
+		} else {
+			mesh.SetLabel(modelName + ":end_effector")
+			p.endEffectorMesh = mesh
+		}
+	}
 
 	if err := p.connect(); err != nil {
 		return nil, err
@@ -366,6 +416,8 @@ func (p *panda) bestEffortStop() error {
 
 // Geometries returns spatial geometries for collision checking; we delegate
 // to the model frame's geometry computation against current inputs.
+// When an end_effector is configured, its mesh is appended at panda_link7's world-frame
+// pose so the gripper rotates with joint 7.
 func (p *panda) Geometries(ctx context.Context, extra map[string]any) ([]spatialmath.Geometry, error) {
 	inputs, err := p.CurrentInputs(ctx)
 	if err != nil {
@@ -375,7 +427,18 @@ func (p *panda) Geometries(ctx context.Context, extra map[string]any) ([]spatial
 	if err != nil {
 		return nil, err
 	}
-	return gif.Geometries(), nil
+	geoms := gif.Geometries()
+	if p.endEffectorMesh == nil {
+		return geoms, nil
+	}
+	for _, g := range geoms {
+		if g.Label() == link7GeomLabel {
+			geoms = append(geoms, p.endEffectorMesh.Transform(g.Pose()))
+			return geoms, nil
+		}
+	}
+	p.logger.Warnf("Geometries: %q not found, end-effector mesh not appended", link7GeomLabel)
+	return geoms, nil
 }
 
 // DoCommand exposes module-specific operations.
