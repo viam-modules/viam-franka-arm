@@ -233,10 +233,31 @@ Panda). `hand.stl` powers the gripper's 3D rendering via the
   "type": "arm",
   "attributes": {
     "host": "172.16.0.2",
-    "speed_factor": 0.1
+    "speed_factor": 0.1,
+    "end_effector": "hand"
   }
 }
 ```
+
+Attributes:
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `host` | string | yes | FCI IP of the arm (default deployment is `172.16.0.2`). |
+| `speed_factor` | float | no | libfranka motion-generator speed factor in `(0, 1]`. Defaults to `0.1`. |
+| `motion` | string | no | Name of a motion service to use for `MoveToPosition`. Defaults to `builtin`. |
+| `urdf_path` | string | no | Override path to the URDF. Defaults to `<VIAM_MODULE_ROOT>/arm/panda_arm.urdf`. |
+| `end_effector` | string | no | Mounts the named gripper STL on `panda_link7` so it appears in the 3D Scene tab and is included in collision geometries. Valid values: `hand`, `fr3_movable`, `flange_gripper`. Omit for a bare arm. |
+
+End-effector STLs live under [`arm/meshes/panda/`](arm/meshes/panda/):
+
+| `end_effector` | STL file |
+| --- | --- |
+| `hand` | `hand.stl` (standard Franka Hand) |
+| `fr3_movable` | `Franka_Hand_Research_FR3_movable.stl` |
+| `flange_gripper` | `FlangeGripperFingersv1_newfingers.stl` |
+
+The mesh is attached at `panda_link7`'s joint-frame pose, so it rotates with joint 7. The Viam `viam:franka:gripper` component is independent of this attribute — set `end_effector` here purely for visualization and collision geometry on the arm component.
 
 ## Franka Hand
 
