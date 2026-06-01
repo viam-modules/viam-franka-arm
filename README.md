@@ -5,10 +5,6 @@ Wraps [libfranka](https://github.com/frankaemika/libfranka) (C++) via a thin
 cgo C-ABI shim. The 1 kHz FCI control loop runs entirely inside libfranka in
 C++; Go calls high-level move primitives and polls state at a lower rate.
 
-## Status
-
-Phase 1 scaffolding. Not yet connected to real hardware.
-
 ## Target architectures
 
 - `linux/amd64` — implemented, primary deployment target
@@ -233,10 +229,31 @@ Panda). `hand.stl` powers the gripper's 3D rendering via the
   "type": "arm",
   "attributes": {
     "host": "172.16.0.2",
-    "speed_factor": 0.1
+    "speed_factor": 0.1,
+    "end_effector": "hand"
   }
 }
 ```
+
+Attributes:
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `host` | string | yes | FCI IP of the arm (default deployment is `172.16.0.2`). |
+| `speed_factor` | float | no | libfranka motion-generator speed factor in `(0, 1]`. Defaults to `0.1`. |
+| `motion` | string | no | Name of a motion service to use for `MoveToPosition`. Defaults to `builtin`. |
+| `urdf_path` | string | no | Override path to the URDF. Defaults to `<VIAM_MODULE_ROOT>/arm/panda_arm.urdf`. |
+| `end_effector` | string | no | Mounts the named gripper STL on `panda_link7` so it appears in the 3D Scene tab and is included in collision geometries. Valid values: `hand`, `fr3_movable`, `flange_gripper`. Omit for a bare arm. |
+
+End-effector STLs live under [`arm/meshes/panda/`](arm/meshes/panda/):
+
+| `end_effector` | STL file |
+| --- | --- |
+| `hand` | `hand.stl` (standard Franka Hand) |
+| `fr3_movable` | `Franka_Hand_Research_FR3_movable.stl` |
+| `flange_gripper` | `FlangeGripperFingersv1_newfingers.stl` |
+
+The mesh is attached at `panda_link7`'s joint-frame pose, so it rotates with joint 7. The Viam `viam:franka:gripper` component is independent of this attribute — set `end_effector` here purely for visualization and collision geometry on the arm component. The gripper component has its own [`end_effector`](#franka-hand) attribute for its mesh; set both if you run the arm and gripper together.
 
 ## Franka Hand
 
@@ -246,7 +263,20 @@ Panda). `hand.stl` powers the gripper's 3D rendering via the
   "model": "viam:franka:gripper",
   "type": "gripper",
   "attributes": {
-    "host": "172.16.0.2"
+    "host": "172.16.0.2",
+    "end_effector": "hand"
   }
 }
 ```
+
+Attributes:
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `host` | string | yes | FCI IP of the arm (default deployment is `172.16.0.2`). |
+| `speed` | float | no | Jaw speed in m/s, in `[0, 0.2]`. Defaults to `0.05`. |
+| `force` | float | no | Grasp force in N, in `[0, 80]`. Defaults to `20.0`. |
+| `skip_homing` | bool | no | Skip the calibration sweep at startup. Defaults to `false`. |
+| `end_effector` | string | no | Selects the STL used as the gripper's collision geometry and 3D Scene mesh, replacing the default `hand.stl`. Valid values: `hand`, `fr3_movable`, `flange_gripper` (see the STL table above). Omit for the standard Franka Hand. |
+
+The gripper's `end_effector` is independent of the arm's [`end_effector`](#configure-your-panda): the arm attribute mounts a mesh on `panda_link7` for the arm component, while this one sets the geometry of the `viam:franka:gripper` component itself.

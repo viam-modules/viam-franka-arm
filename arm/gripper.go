@@ -58,6 +58,11 @@ type GripperConfig struct {
 	Force float64 `json:"force,omitempty"`
 	// SkipHoming skips the calibration sweep at startup. Default false.
 	SkipHoming bool `json:"skip_homing,omitempty"`
+	// EndEffector names the gripper/end-effector mounted on the hand. The named
+	// STL is used as the gripper's collision geometry instead of the default
+	// hand mesh. Leave empty for the standard Franka Hand. See endEffectorSTLs
+	// for valid names.
+	EndEffector string `json:"end_effector,omitempty"`
 }
 
 // Validate the GripperConfig.
@@ -70,6 +75,15 @@ func (c *GripperConfig) Validate(path string) ([]string, []string, error) {
 	}
 	if c.Force < 0 || c.Force > 80 {
 		return nil, nil, fmt.Errorf("force must be in [0, 80] N")
+	}
+	if c.EndEffector != "" {
+		if _, ok := endEffectorSTLs[c.EndEffector]; !ok {
+			names := make([]string, 0, len(endEffectorSTLs))
+			for k := range endEffectorSTLs {
+				names = append(names, k)
+			}
+			return nil, nil, fmt.Errorf("end_effector %q is not one of %v", c.EndEffector, names)
+		}
 	}
 	return nil, nil, nil
 }
@@ -130,10 +144,14 @@ func newFrankaGripper(
 		logger: logger,
 		mf:     referenceframe.NewSimpleModel("franka-hand"),
 	}
-	if mesh, err := spatialmath.NewMeshFromSTLFile(handSTLPath()); err == nil {
+	meshPath := handSTLPath()
+	if cfg.EndEffector != "" {
+		meshPath = endEffectorSTLPath(endEffectorSTLs[cfg.EndEffector])
+	}
+	if mesh, err := spatialmath.NewMeshFromSTLFile(meshPath); err == nil {
 		g.geometry = mesh
 	} else {
-		logger.Warnf("franka-hand: hand.stl not loaded, gripper will not render in 3D Scene: %v", err)
+		logger.Warnf("franka-hand: %s not loaded, gripper will not render in 3D Scene: %v", meshPath, err)
 	}
 	g.maxWidthM.Store(openTargetMeters)
 
