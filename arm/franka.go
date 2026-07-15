@@ -234,7 +234,7 @@ func MakeModelFrameFromURDF(path string) (referenceframe.Model, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("URDF not found at %q (set urdf_path or place panda_arm.urdf next to the binary): %w", path, err)
 	}
-	return referenceframe.ParseModelXMLFile(path, modelName)
+	return referenceframe.ParseModelXMLFile(path, modelName, nil)
 }
 
 func (p *panda) connect() error {
