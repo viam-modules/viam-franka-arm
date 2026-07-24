@@ -2,7 +2,10 @@ module github.com/viam-modules/viam-franka-arm
 
 go 1.25.1
 
-require go.viam.com/rdk v0.118.0
+require (
+	go.viam.com/api v0.1.530
+	go.viam.com/rdk v0.118.0
+)
 
 require (
 	cloud.google.com/go v0.115.1 // indirect
@@ -169,7 +172,6 @@ require (
 	go.uber.org/goleak v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	go.viam.com/api v0.1.530 // indirect
 	go.viam.com/test v1.2.4 // indirect
 	go.viam.com/utils v0.4.13 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
