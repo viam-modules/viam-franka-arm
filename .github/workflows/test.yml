@@ -1,0 +1,59 @@
+name: Lint, Test & Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      # Cache the vendored libfranka build. setup.sh builds libfranka 0.9.2 from
+      # source (~tens of minutes) but is idempotent — it skips the rebuild when
+      # third_party/linux-amd64/lib/libfranka.so is already present. So on a cache
+      # hit `make setup` is a no-op and this whole job stays light. Keyed on
+      # setup.sh + build.sh so a libfranka version bump (which edits those)
+      # invalidates the cache and triggers one fresh rebuild. No restore-keys:
+      # a partial-match restore would wrongly reuse a stale libfranka, since the
+      # skip check only tests for the .so's existence, not its version.
+      - name: Cache vendored libfranka
+        uses: actions/cache@v4
+        with:
+          path: third_party/linux-amd64
+          key: franka-thirdparty-linux-amd64-${{ hashFiles('setup.sh', 'third_party/build.sh') }}
+
+      # patchelf is used by `make build` to set rpaths (it degrades gracefully
+      # without it, but install it so the build faithfully mirrors a real one).
+      - name: Install patchelf
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends patchelf
+
+      # No-op on a cache hit; builds + stages libfranka under third_party/ on a miss.
+      - name: make setup
+        run: make setup
+
+      - name: make lint
+        run: make lint
+
+      - name: make test
+        run: make test
+
+      - name: make build
+        run: make build
+
+      # Package the deployable module tarball so a PR proves the module both
+      # compiles and bundles cleanly, not just that `go build` succeeds.
+      - name: make module
+        run: make module
