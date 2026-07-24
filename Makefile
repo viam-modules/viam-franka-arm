@@ -26,7 +26,16 @@ LIBFRANKA_TAG ?= 0.9.2
 
 CGO_CFLAGS   := -I$(VENDOR_DIR)/include
 CGO_CXXFLAGS := -I$(VENDOR_DIR)/include -std=c++17
-CGO_LDFLAGS  := -L$(VENDOR_DIR)/lib -lfranka -Wl,-rpath-link,$(VENDOR_DIR)/lib -Wl,-rpath,\$$ORIGIN/lib
+CGO_LDFLAGS  := -L$(VENDOR_DIR)/lib -lfranka
+# -rpath-link and $ORIGIN are GNU-ld/ELF only. Apple's ld rejects -rpath-link
+# outright and spells the equivalent of $ORIGIN as @loader_path.
+ifeq ($(UNAME_S),Darwin)
+CGO_LDFLAGS += -Wl,-rpath,@loader_path/lib
+LOADER_PATH_VAR := DYLD_LIBRARY_PATH
+else
+CGO_LDFLAGS += -Wl,-rpath-link,$(VENDOR_DIR)/lib -Wl,-rpath,\$$ORIGIN/lib
+LOADER_PATH_VAR := LD_LIBRARY_PATH
+endif
 
 export CGO_CFLAGS
 export CGO_CXXFLAGS
@@ -187,8 +196,12 @@ lint: gofmt tool-install
 	go mod tidy
 	PATH=$(PATH_WITH_TOOLS) golangci-lint run -c etc/.golangci.yaml --fix
 
+# `go test` binaries run from a temp build dir, so the $ORIGIN/lib rpath baked
+# in for the deployed module layout (binary alongside lib/) doesn't resolve.
+# Point the dynamic loader at the vendored libs — libfranka plus the Poco libs
+# it links against — for the duration of the test run.
 test: tool-install
-	go test -v -race -failfast ./...
+	$(LOADER_PATH_VAR)="$(VENDOR_DIR)/lib:$$$(LOADER_PATH_VAR)" go test -v -race -failfast ./...
 
 upload:
 	@echo viam module upload --version \"0.0.5\" --platform \"linux/amd64\" $(BIN_OUTPUT_PATH)/amd64/module.tar.gz

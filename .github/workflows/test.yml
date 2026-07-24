@@ -47,8 +47,15 @@ jobs:
       - name: make lint
         run: make lint
 
+      # `go test` binaries run from a temp build dir, so the $ORIGIN/lib rpath
+      # baked in for the deployed module layout (binary alongside lib/) doesn't
+      # resolve. Point the dynamic loader at the vendored libs — libfranka plus
+      # the Poco libs it links against. `env:` values are not shell-expanded, so
+      # this sets (not prepends to) LD_LIBRARY_PATH, which is empty on the runner.
       - name: make test
         run: make test
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/third_party/linux-amd64/lib
 
       - name: make build
         run: make build
