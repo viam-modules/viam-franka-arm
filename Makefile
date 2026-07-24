@@ -21,6 +21,9 @@ endif
 
 VENDOR_DIR := $(CURDIR)/third_party/$(VENDOR_TRIPLE)
 
+# Keep in sync with setup.sh and third_party/build.sh.
+LIBFRANKA_TAG ?= 0.9.2
+
 CGO_CFLAGS   := -I$(VENDOR_DIR)/include
 CGO_CXXFLAGS := -I$(VENDOR_DIR)/include -std=c++17
 CGO_LDFLAGS  := -L$(VENDOR_DIR)/lib -lfranka -Wl,-rpath-link,$(VENDOR_DIR)/lib -Wl,-rpath,\$$ORIGIN/lib
@@ -29,7 +32,7 @@ export CGO_CFLAGS
 export CGO_CXXFLAGS
 export CGO_LDFLAGS
 
-.PHONY: build module module.tar.gz setup clean clean-docker distclean third_party-arm64 third_party-amd64 third_party-ubuntu20-amd64 third_party-ubuntu20-arm64 module-ubuntu20-amd64 module-ubuntu20-arm64 lint test gofmt tool-install
+.PHONY: build module module.tar.gz setup clean clean-docker distclean third_party-arm64 third_party-amd64 third_party-ubuntu20-amd64 third_party-ubuntu20-arm64 module-ubuntu20-amd64 module-ubuntu20-arm64 lint test gofmt tool-install third_party-darwin-headers
 
 build:
 	@test -d "$(VENDOR_DIR)" || (echo "Missing $(VENDOR_DIR)." && echo "Run one of:" && echo "  make third_party-$(subst linux-,,$(VENDOR_TRIPLE))   # buildx (needs docker/podman)" && echo "  make setup                       # native build (needs sudo for apt)" && exit 1)
@@ -133,6 +136,20 @@ third_party-arm64:
 third_party-amd64:
 	bash third_party/build.sh linux/amd64
 
+# Headers-only staging so `make lint` / `go vet` can type-check the cgo packages
+# on macOS. libfranka itself can't be built here (setup.sh is apt-only and
+# third_party/build.sh only targets linux), but cgo only needs the headers to
+# type-check — nothing links. libfranka's public headers depend on the C++
+# standard library alone (no Eigen, no Poco), so a source checkout is enough.
+# This does NOT enable `make build`/`make test`, which still need the real lib.
+third_party-darwin-headers:
+	rm -rf third_party/build/libfranka $(VENDOR_DIR)/include/franka
+	mkdir -p third_party/build $(VENDOR_DIR)/include
+	git clone --depth 1 --branch $(LIBFRANKA_TAG) \
+		https://github.com/frankaemika/libfranka.git third_party/build/libfranka
+	cp -R third_party/build/libfranka/include/franka $(VENDOR_DIR)/include/
+	@echo ">>> Staged libfranka $(LIBFRANKA_TAG) headers in $(VENDOR_DIR)/include."
+
 clean:
 	rm -rf $(BIN_OUTPUT_PATH)
 
@@ -149,17 +166,24 @@ clean-docker:
 distclean: clean clean-docker
 	rm -rf third_party/linux-amd64 third_party/linux-arm64 third_party/build
 
+# The tools are standalone binaries: install them at pinned versions and without
+# this module's libfranka CGO flags, which they do not need (and which break the
+# link step on macOS, where ld has no -rpath-link).
+TOOL_INSTALL_ENV := GOBIN=`pwd`/$(TOOL_BIN) CGO_ENABLED=0 CGO_CFLAGS= CGO_CXXFLAGS= CGO_LDFLAGS=
+
 tool-install:
-	GOBIN=`pwd`/$(TOOL_BIN) go install \
-		github.com/edaniels/golinters/cmd/combined \
-		github.com/rhysd/actionlint/cmd/actionlint
-	GOBIN=`pwd`/$(TOOL_BIN) GOTOOLCHAIN=go1.25.1 go install \
+	$(TOOL_INSTALL_ENV) go install \
+		github.com/edaniels/golinters/cmd/combined@v0.0.5-0.20220906153528-641155550742
+	$(TOOL_INSTALL_ENV) go install \
+		github.com/rhysd/actionlint/cmd/actionlint@v1.7.8
+	$(TOOL_INSTALL_ENV) go install \
 		github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.8.0
 
 gofmt:
 	gofmt -w -s .
 
 lint: gofmt tool-install
+	@test -d "$(VENDOR_DIR)/include/franka" || (echo "Missing libfranka headers in $(VENDOR_DIR)/include — the cgo packages cannot be type-checked." && echo "Run one of:" && echo "  make third_party-darwin-headers  # macOS: headers only, enough to lint" && echo "  make setup                       # Linux: full native build" && exit 1)
 	go mod tidy
 	PATH=$(PATH_WITH_TOOLS) golangci-lint run -c etc/.golangci.yaml --fix
 

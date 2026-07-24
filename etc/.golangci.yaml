@@ -1,0 +1,11 @@
+version: "2"
+run:
+  timeout: 10m
+  modules-download-mode: readonly
+  tests: true
+linters:
+  # golangci-lint's standard set: errcheck, govet, ineffassign, staticcheck,
+  # unused. Deliberately not `default: all` — the opinionated style linters
+  # (forbidigo, revive, gocritic, wsl, ...) flag a lot of existing code without
+  # finding real defects. Add individual linters here as the team wants them.
+  default: standard

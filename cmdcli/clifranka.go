@@ -62,7 +62,9 @@ func realMain() error {
 	if err != nil {
 		return fmt.Errorf("constructing panda: %w", err)
 	}
-	defer armRes.Close(ctx)
+	defer func() {
+		_ = armRes.Close(ctx)
+	}()
 
 	armComp, ok := armRes.(arm.Arm)
 	if !ok {
