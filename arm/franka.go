@@ -234,7 +234,7 @@ func MakeModelFrameFromURDF(path string) (referenceframe.Model, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("URDF not found at %q (set urdf_path or place panda_arm.urdf next to the binary): %w", path, err)
 	}
-	return referenceframe.ParseModelXMLFile(path, modelName)
+	return referenceframe.ParseModelXMLFile(path, modelName, nil)
 }
 
 func (p *panda) connect() error {
@@ -356,6 +356,30 @@ func (p *panda) MoveToJointPositions(ctx context.Context, positions []referencef
 			return fmt.Errorf("move_to_joint: %s", r.msg)
 		}
 		return nil
+	}
+}
+
+// MoveThroughJointPositionsStreamed receives batches of trajectory points and executes them in order.
+func (p *panda) MoveThroughJointPositionsStreamed(
+	ctx context.Context,
+	batches <-chan []arm.TrajectoryPoint,
+	responses chan<- arm.Response,
+	extra map[string]interface{},
+) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case batch, ok := <-batches:
+			if !ok {
+				return nil
+			}
+			for _, pt := range batch {
+				if err := p.MoveToJointPositions(ctx, pt.Positions, extra); err != nil {
+					return err
+				}
+			}
+		}
 	}
 }
 
