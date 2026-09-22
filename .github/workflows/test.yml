@@ -17,7 +17,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version-file: go.mod
 
       # Cache the vendored libfranka build. setup.sh builds libfranka 0.9.2 from
       # source (~tens of minutes) but is idempotent — it skips the rebuild when
