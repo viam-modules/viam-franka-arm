@@ -441,10 +441,12 @@ func (p *panda) bestEffortStop() error {
 }
 
 // Properties reports which optional arm features the Panda supports.
+// Cartesian commands go through the motion service, so they're only
+// supported when one resolved.
 func (p *panda) Properties(ctx context.Context, extra map[string]any) (arm.Properties, error) {
 	return arm.Properties{
 		SupportManualMode:        false,
-		SupportCartesianCommands: true,
+		SupportCartesianCommands: p.motion != nil,
 	}, nil
 }
 
