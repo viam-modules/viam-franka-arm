@@ -17,10 +17,12 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	commonpb "go.viam.com/api/common/v1"
 	"go.viam.com/rdk/components/arm"
+	"go.viam.com/rdk/grpc"
 	"go.viam.com/rdk/logging"
 	"go.viam.com/rdk/operation"
 	"go.viam.com/rdk/referenceframe"
@@ -436,6 +438,25 @@ func (p *panda) bestEffortStop() error {
 		return fmt.Errorf("stop: %s", msg)
 	}
 	return nil
+}
+
+// Properties reports which optional arm features the Panda supports.
+func (p *panda) Properties(ctx context.Context, extra map[string]any) (arm.Properties, error) {
+	return arm.Properties{
+		SupportManualMode:        false,
+		SupportCartesianCommands: true,
+	}, nil
+}
+
+// SetManualMode is unsupported: hand-guiding is toggled from Franka Desk or the
+// pilot buttons, which libfranka's FCI does not expose.
+func (p *panda) SetManualMode(ctx context.Context, manualMode bool, enabledFor time.Duration, extra map[string]any) error {
+	return grpc.UnimplementedError
+}
+
+// ManualMode is unsupported; see SetManualMode.
+func (p *panda) ManualMode(ctx context.Context, extra map[string]any) (bool, error) {
+	return false, grpc.UnimplementedError
 }
 
 // Geometries returns spatial geometries for collision checking; we delegate
