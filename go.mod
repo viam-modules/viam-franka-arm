@@ -3,7 +3,7 @@ module github.com/viam-modules/viam-franka-arm
 go 1.26.10
 
 require (
-	go.viam.com/api v0.1.607
+	go.viam.com/api v0.1.610
 	go.viam.com/rdk v1.17.0
 )
 
